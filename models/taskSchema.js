@@ -10,7 +10,8 @@ const taskSchema = new mongoose.Schema({
         required:true
     },
     complete:{
-        type:Boolean
+        type:Boolean,
+        default : false
     }
 },{timeseries:true})
 

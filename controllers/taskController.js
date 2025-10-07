@@ -4,7 +4,7 @@ const createTask = async(req,res) => {
     const {title,description} = req.body
 
     try {
-        const addTask = new Task({title,description,complete:false})
+        const addTask = new Task({title,description})
         await addTask.save()
 
         return res.status(201).json({
