@@ -12,6 +12,10 @@ const taskSchema = new mongoose.Schema({
     complete:{
         type:Boolean,
         default : false
+    },
+    Date :{
+        type:Date,
+        default:Date.now()
     }
 },{timeseries:true})
 
