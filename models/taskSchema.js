@@ -13,10 +13,7 @@ const taskSchema = new mongoose.Schema({
         type:Boolean,
         default : false
     },
-    Date :{
-        type:Date,
-        default:Date.now()
-    }
+    
 },{timeseries:true})
 
 const Task = mongoose.model("Task",taskSchema)
