@@ -13,8 +13,8 @@ const corsOptions = {
 }
 const app = express()
 connectDB()
-app.use(express.json())
 app.use(cors(corsOptions))
+app.use(express.json())
 app.use('/api/task',taskRouter)
 
 app.get('/',(req,res) => {
