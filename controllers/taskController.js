@@ -1,4 +1,5 @@
 const Task = require('../models/taskSchema')
+const client = require('../config/redisConfig')
 
 const createTask = async(req,res) => {
     const {title,description} = req.body
@@ -18,27 +19,40 @@ const createTask = async(req,res) => {
     }
 }
 
-const getTask = async(req,res) => {
-    try {
-        const getTodo = await Task.find({})
 
-        if(!getTodo && getTodo.length == 0){
-            res.json({
-                success:true,
-                todo: []
-            })
-        }
+const getTask = async (req, res) => {
+  try {
+    const cacheValue = await client.get('todos');
 
-        return res.status(200).json({
-            success:true,
-            todo:getTodo
-        })
-    } catch (error) {
-         return res.status(500).json({
-            message:`${error.message}`
-        })
+    if (cacheValue) {
+      console.log('✅ Fetched from Redis cache');
+      return res.status(200).json({
+        success: true,
+        todo: JSON.parse(cacheValue),
+        fromCache: true,
+      });
     }
+
+    const getTodo = await Task.find({});
+
+    if (!getTodo || getTodo.length === 0) {
+      return res.status(200).json({ success: true, todo: [] });
+    }
+
+    await client.set('todos', JSON.stringify(getTodo), 'EX', 60);
+
+    return res.status(200).json({
+      success: true,
+      todo: getTodo,
+      fromCache: false,
+    });
+  } catch (error) {
+    console.error('Redis or DB Error:', error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
 }
+
+
 
 const deleteTask = async(req,res) => {
     const {id} = req.params
