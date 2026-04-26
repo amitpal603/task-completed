@@ -1,5 +1,5 @@
 const Task = require('../models/taskSchema')
-const client = require('../config/redisConfig')
+const { cache } = require('../config/redisConfig')
 
 const createTask = async(req,res) => {
     const {title,description} = req.body
@@ -7,6 +7,9 @@ const createTask = async(req,res) => {
     try {
         const addTask = new Task({title,description,user : userId})
         await addTask.save()
+
+        // Invalidate cache
+        await cache.del(`todos:${userId}`);
 
         return res.status(201).json({
             success:true,
@@ -23,24 +26,26 @@ const createTask = async(req,res) => {
 const getTask = async (req, res) => {
   try {
     const userId = req.session.user?.userId || req.userId
-    const cacheValue = await client.get('todos');
+    const cacheKey = `todos:${userId}`;
+    const cacheData = await cache.get(cacheKey);
 
-    if (cacheValue) {
-      console.log('✅ Fetched from Redis cache');
+    if (cacheData) {
+      console.log(`✅ Fetched from Redis cache for user: ${userId}`);
       return res.status(200).json({
         success: true,
-        todo: JSON.parse(cacheValue),
+        todo: cacheData,
         fromCache: true,
       });
     }
 
-    const getTodo = await Task.find({userId});
+    const getTodo = await Task.find({ user: userId });
 
     if (!getTodo || getTodo.length === 0) {
       return res.status(200).json({ success: true, todo: [] });
     }
 
-    await client.set('todos', JSON.stringify(getTodo), 'EX', 60);
+    // Cache for 1 hour
+    await cache.set(cacheKey, getTodo, 3600);
 
     return res.status(200).json({
       success: true,
@@ -59,7 +64,7 @@ const deleteTask = async(req,res) => {
     const {id} = req.params
    const userId = req.session.user?.userId || req.userId
     try {
-        const deleteTask = await Task.findByIdAndDelete({id,user:userId})
+        const deleteTask = await Task.findOneAndDelete({ _id: id, user: userId })
 
         if(!deleteTask){
           return res.status(404).json({
@@ -67,6 +72,10 @@ const deleteTask = async(req,res) => {
             message: 'todo not found'
           })
         }
+
+        // Invalidate cache
+        await cache.del(`todos:${userId}`);
+
         return res.status(200).json({
             success:true,
             message:'deleted successfULLY'
@@ -82,13 +91,17 @@ const updateTask = async(req,res) => {
     const {id} = req.params
     const userId = req.session.user?.userId || req.userId
     try {
-        const update = await Task.findByIdAndUpdate({id,user : userId},{$set: req.body},{new:true,runValidators : true})
+        const update = await Task.findOneAndUpdate({ _id: id, user: userId }, { $set: req.body }, { new: true, runValidators: true })
           if(!update){
             return res.status(404).json({
               success:false,
               message:'Todo not found'
             })
           }
+
+        // Invalidate cache
+        await cache.del(`todos:${userId}`);
+
         return res.status(200).json({
             success:true,
             message:'update successFully'
@@ -103,7 +116,7 @@ const updateTask = async(req,res) => {
   try {
     const userId = req.session.user?.userId || req.userId
     const {id} = req.params
-    const todo = await Task.findOne({id,user:userId})
+    const todo = await Task.findOne({ _id: id, user: userId })
 
     if(!todo){
       return res.json({
@@ -114,6 +127,9 @@ const updateTask = async(req,res) => {
 
     todo.complete = !todo.complete
     await todo.save()
+
+    // Invalidate cache
+    await cache.del(`todos:${userId}`);
 
     res.json({
       success:true,
